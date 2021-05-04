@@ -29,11 +29,12 @@ login_manager.login_view = 'login'
 #will likely add relationships
 # add roles
 
-offer = db.Table('offer', 
-db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
-db.Column('item_id', db.Integer, db.ForeignKey('items.id')))
     
-  
+bid = db.Table('bids',
+db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+db.Column('item_id', db.Integer, db.ForeignKey('items.id'))
+)
+
 
 #USERS
 class User(UserMixin, db.Model):
@@ -44,8 +45,7 @@ class User(UserMixin, db.Model):
     last_name = db.Column(db.String(120))
     first_name = db.Column(db.String(120))
     email = db.Column(db.String(120))
-    offers = db.relationship('Item', secondary=offer, backref=db.backref('bids', lazy='dynamic'), lazy='dynamic')
-    
+    items = db.relationship('Item', secondary='bids', backref=db.backref('user', lazy='dynamic'))
     
     @property
     def password(self):
@@ -65,9 +65,12 @@ class User(UserMixin, db.Model):
 class Item(db.Model):
     __tablename__ = 'items'
     id = db.Column(db.Integer, primary_key=True)
+    person_id(db.Integer, db.ForeignKey('user.id'))
     itemname = db.Column(db.String(64), nullable=False)
     item_price = db.Column(db.Integer, nullable=False )
     description = db.Column(db.String(164), nullable=False)
+    users = db.relationship('User', secondary='bids', backref=db.backref('Item', lazy='dynamic'))
+   ##idk if person id will work
     
     def __init__(self, itemname, item_price, description):
        self.itemname = itemname
@@ -78,16 +81,8 @@ class Item(db.Model):
         return '<Item {}>'.format(self.itemname)
 
 #OFFERS
-class Offers(db.Model):
 
-    __tablename__ = 'Offers'
-    id = db.Column(db.Integer, primary_key=True)
-    item_id = db.Column(db.Integer, db.ForeignKey('Article.id'), nullable=False)
-    user_id = db.Column(db.String(80), nullable=False)
-    price = db.Column(db.Integer, nullable=False)
 
-    def __repr__(self):
-        return '<Offer {}>'.format(id)
 
 
  
@@ -157,13 +152,17 @@ def login():
 
 @app.route('/itempage', methods=['GET', 'POST'])
 def itempage():
-    form = ItemForm() 
-    if form.validate_on_submit():
-        item = Item(itemname=form.itemname.data, item_price=form.item_price.data, description=form.description.data)
-        db.session.add(item) 
+    itemForm = ItemForm() 
+    if itemForm.validate_on_submit():
+        items = Item(itemname=itemForm.itemname.data, item_price=itemForm.item_price.data, description=itemForm.description.data)
+        db.session.add(items) 
         db.session.commit() 
+        itemForm.itemname.data=''
+        itemForm.item_price.data=''
+        itemForm.description.data=''
         return redirect(url_for('itempage'))
-    return render_template('itempage.html', form=form)
+    items = Item.query.all()
+    return render_template('itempage.html', form=itemForm, items=items)
 #logout
 @app.route('/logout')
 def logout():
@@ -194,6 +193,11 @@ def bidder(username):
         error = 'You dont have permission to view this page'
     return redirect(url_for('index', error=error))
 
+@app.route('/bids')
+def bids():
+    bid_data = Bid.query.all()
+    return render_template('bids.html', bid_data=bid_data)
+
 #Item Listing - displays a list of all items
 @app.route('/items')
 def all_items():
@@ -203,7 +207,7 @@ def all_items():
 @app.route('/items/<item_id>')
 def item(itemname):
     item_data = Item.query.get_or_404(int(id))
-    return render_template('items.html', item_data=item_item_data)
+    return render_template('items.html', item_data=item_data)
 
 
 @app.route('/profile')
@@ -237,4 +241,3 @@ def profile():
 
 if __name__ == '__main__':
     app.run(debug=True)
- 
